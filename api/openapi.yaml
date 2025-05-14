@@ -1,0 +1,473 @@
+openapi: 3.0.0
+info:
+  description: Common API contracts for FiftyTen microservices
+  title: FiftyTen Service Contracts
+  version: 1.0.0
+servers:
+- description: Master node
+  url: http://localhost:3030
+- description: Worker node
+  url: http://localhost:3040
+paths:
+  /api/health:
+    get:
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_api_health_get_200_response'
+          description: Service is healthy
+      summary: Health check
+  /api/workers/register:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkerRegistration'
+        required: true
+      responses:
+        "200":
+          description: Worker registered successfully
+      summary: Register a worker
+  /api/workers/heartbeat:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkerStatus'
+        required: true
+      responses:
+        "200":
+          description: Heartbeat acknowledged
+      summary: Send worker heartbeat
+  /api/workers/task-result:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskResult'
+        required: true
+      responses:
+        "200":
+          description: Result acknowledged
+      summary: Submit task result
+  /api/tasks:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/_api_tasks_post_request'
+        required: true
+      responses:
+        "200":
+          description: Tasks accepted
+      summary: Submit tasks (single or batch)
+components:
+  schemas:
+    Interval:
+      description: Time interval for candles
+      enum:
+      - 1m
+      - 5m
+      - 15m
+      - 1h
+      - 4h
+      - 1d
+      - 1w
+      - 1M
+      type: string
+    BaseMarketContext:
+      description: Base market data operation context with common fields
+      properties:
+        interval:
+          $ref: '#/components/schemas/Interval'
+        marketCategory:
+          description: Category of the market
+          enum:
+          - crypto
+          type: string
+      required:
+      - interval
+      - marketCategory
+      type: object
+    ExchangeType:
+      description: Supported crypto exchange types
+      enum:
+      - gateio
+      - okx
+      - bitunix
+      - mexc
+      type: string
+    Symbol:
+      description: Crypto trading pair symbol
+      enum:
+      - BTC-USDT
+      - ETH-USDT
+      - SOL-USDT
+      - XRP-USDT
+      type: string
+    CryptoMarketType:
+      description: Type of crypto market
+      enum:
+      - spot
+      - futures
+      - perpetual
+      type: string
+    CryptoMarketContext:
+      allOf:
+      - $ref: '#/components/schemas/BaseMarketContext'
+      - properties:
+          exchangeType:
+            $ref: '#/components/schemas/ExchangeType'
+          symbol:
+            $ref: '#/components/schemas/Symbol'
+          marketType:
+            $ref: '#/components/schemas/CryptoMarketType'
+        required:
+        - exchangeType
+        - marketType
+        - symbol
+        type: object
+    MarketContext:
+      $ref: '#/components/schemas/CryptoMarketContext'
+    Candle:
+      description: Single candlestick data point
+      properties:
+        timestamp:
+          description: Unix timestamp in milliseconds
+          format: int64
+          type: integer
+        open:
+          description: Opening price
+          format: double
+          type: number
+        high:
+          description: Highest price
+          format: double
+          type: number
+        low:
+          description: Lowest price
+          format: double
+          type: number
+        close:
+          description: Closing price
+          format: double
+          type: number
+        volume:
+          description: Trading volume
+          format: double
+          type: number
+      required:
+      - close
+      - high
+      - low
+      - open
+      - timestamp
+      - volume
+      type: object
+    CandleStore:
+      description: Stored candle data with metadata
+      properties:
+        candles:
+          items:
+            $ref: '#/components/schemas/Candle'
+          type: array
+        lastUpdated:
+          format: date-time
+          nullable: true
+          type: string
+        nextUpdate:
+          format: date-time
+          type: string
+      required:
+      - candles
+      - nextUpdate
+      type: object
+    Task:
+      description: Data collection task
+      properties:
+        id:
+          description: Unique task identifier
+          type: string
+        exchangeType:
+          $ref: '#/components/schemas/ExchangeType'
+        symbol:
+          $ref: '#/components/schemas/Symbol'
+        interval:
+          $ref: '#/components/schemas/Interval'
+        taskType:
+          enum:
+          - collect
+          - gap_fill
+          - historical_load
+          type: string
+        priority:
+          default: 1
+          description: Task priority (higher = more important)
+          type: integer
+        limit:
+          description: Data limit for collection
+          type: integer
+        startTime:
+          description: Start time for historical/gap tasks
+          format: date-time
+          nullable: true
+          type: string
+        endTime:
+          description: End time for historical/gap tasks
+          format: date-time
+          nullable: true
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        loadContext:
+          $ref: '#/components/schemas/LoadContext'
+      required:
+      - createdAt
+      - exchangeType
+      - id
+      - interval
+      - symbol
+      - taskType
+      type: object
+    TaskResult:
+      description: Result of task execution
+      example:
+        symbol: BTC-USDT
+        taskType: taskType
+        workerId: workerId
+        data: "{}"
+        processedAt: 2000-01-23T04:56:07.000+00:00
+        exchangeType: gateio
+        interval: 1m
+        completed: true
+        error: error
+        taskId: taskId
+        parentId: parentId
+        itemCount: 0
+      properties:
+        taskId:
+          type: string
+        parentId:
+          nullable: true
+          type: string
+        exchangeType:
+          $ref: '#/components/schemas/ExchangeType'
+        symbol:
+          $ref: '#/components/schemas/Symbol'
+        interval:
+          $ref: '#/components/schemas/Interval'
+        taskType:
+          nullable: true
+          type: string
+        completed:
+          type: boolean
+        error:
+          nullable: true
+          type: string
+        data:
+          nullable: true
+          type: object
+        itemCount:
+          nullable: true
+          type: integer
+        workerId:
+          nullable: true
+          type: string
+        processedAt:
+          format: date-time
+          type: string
+      required:
+      - completed
+      - exchangeType
+      - interval
+      - processedAt
+      - symbol
+      - taskId
+      type: object
+    LoadContext:
+      description: Context for data loading operations
+      properties:
+        loadType:
+          enum:
+          - initial
+          - update
+          - gap_fill
+          type: string
+        startTime:
+          format: date-time
+          type: string
+        batchId:
+          nullable: true
+          type: string
+        targetSize:
+          nullable: true
+          type: integer
+        metadata:
+          additionalProperties: true
+          nullable: true
+          type: object
+      required:
+      - loadType
+      - startTime
+      type: object
+    EventMetadata:
+      description: Metadata for event messages
+      properties:
+        loadType:
+          enum:
+          - initial
+          - update
+          - gap_fill
+          type: string
+        dataQuality:
+          additionalProperties: true
+          type: object
+        completionRate:
+          format: double
+          maximum: 1
+          minimum: 0
+          type: number
+        itemCount:
+          type: integer
+        timestamp:
+          description: Unix timestamp in milliseconds
+          format: int64
+          type: integer
+      required:
+      - loadType
+      - timestamp
+      type: object
+    DataUpdateEvent:
+      properties:
+        event:
+          enum:
+          - data_update_completed
+          - initial_data_load_completed
+          type: string
+        context:
+          $ref: '#/components/schemas/DataUpdateEvent_context'
+        metadata:
+          $ref: '#/components/schemas/EventMetadata'
+        timestamp:
+          format: int64
+          type: integer
+      required:
+      - context
+      - event
+      - metadata
+      - timestamp
+      type: object
+    WorkerRegistration:
+      example:
+        apiUrl: https://openapi-generator.tech
+        exchanges:
+        - gateio
+        - gateio
+        id: id
+        capacity: 0
+      properties:
+        id:
+          type: string
+        exchanges:
+          items:
+            $ref: '#/components/schemas/ExchangeType'
+          type: array
+        capacity:
+          type: integer
+        apiUrl:
+          format: uri
+          type: string
+      required:
+      - apiUrl
+      - capacity
+      - exchanges
+      - id
+      type: object
+    WorkerStatus:
+      example:
+        completedTasks: 6
+        metadata:
+          key: ""
+        lastSeen: 2000-01-23T04:56:07.000+00:00
+        exchanges:
+        - exchanges
+        - exchanges
+        activeTasks: 0
+        id: id
+        status: active
+      properties:
+        id:
+          type: string
+        status:
+          enum:
+          - active
+          - busy
+          - error
+          type: string
+        activeTasks:
+          type: integer
+        completedTasks:
+          type: integer
+        exchanges:
+          items:
+            type: string
+          type: array
+        lastSeen:
+          format: date-time
+          type: string
+        metadata:
+          additionalProperties: true
+          nullable: true
+          type: object
+      required:
+      - activeTasks
+      - exchanges
+      - id
+      - lastSeen
+      - status
+      type: object
+    _api_health_get_200_response:
+      example:
+        role: role
+        time: 2000-01-23T04:56:07.000+00:00
+        status: status
+      properties:
+        status:
+          type: string
+        role:
+          type: string
+        time:
+          format: date-time
+          type: string
+      type: object
+    _api_tasks_post_request_oneOf:
+      properties:
+        tasks:
+          items:
+            $ref: '#/components/schemas/Task'
+          type: array
+      type: object
+    _api_tasks_post_request:
+      oneOf:
+      - $ref: '#/components/schemas/Task'
+      - $ref: '#/components/schemas/_api_tasks_post_request_oneOf'
+    DataUpdateEvent_context:
+      properties:
+        exchangeType:
+          type: string
+        symbol:
+          type: string
+        interval:
+          type: string
+      required:
+      - exchangeType
+      - interval
+      - symbol
+      type: object
